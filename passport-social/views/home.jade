@@ -1,0 +1,14 @@
+extends layout
+
+block content
+	div.container
+		div.row
+			div.col-sm-6.col-md-4.col-md-offset-4
+				#user
+					h1.text-center.login-title Welcome #{user.firstName}. Check your details below:
+						div.signup-wall
+							ul.user-details
+								li Email    ---> #{user.fb.email}
+								li First Name ---> #{user.fb.firstName} 
+								li Last Name ---> #{user.fb.lastName}
+						a(href='/signout', class='text-center new-account') Sign Out
