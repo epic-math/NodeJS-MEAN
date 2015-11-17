@@ -5,6 +5,7 @@
 
 var Stream = require('stream').Stream
 var utils = require('./utils')
+var helpers = require('./queryhelpers')
 var K = function(k){ return k }
 
 /**
@@ -211,37 +212,49 @@ QueryStream.prototype._onNextObject = function _onNextObject (err, doc) {
     return this.destroy();
   }
 
-  if (this.query.options && true === this.query.options.lean)  {
-    this.emit('data', this._transform(doc));
+  var opts = this.query.options;
 
-    // trampoline management
-    if (T_IDLE === this._inline) {
-      // no longer in trampoline. restart it.
-      this._next();
-    } else {
-      // in a trampoline. tell __next that its
-      // ok to continue jumping.
-      this._inline = T_CONT;
-    }
-    return;
+  if (!opts.populate) {
+    return true === opts.lean
+      ? emit(this, doc)
+      : createAndEmit(this, doc);
   }
 
-  var instance = new this.query.model(undefined, this._fields, true);
-
   var self = this;
+  var pop = helpers.preparePopulationOptions(self.query, self.query.options);
+
+  self.query.model.populate(doc, pop, function (err, doc) {
+    if (err) return self.destroy(err);
+    return true === opts.lean
+      ? emit(self, doc)
+      : createAndEmit(self, doc);
+  })
+}
+
+function createAndEmit (self, doc) {
+  var instance = new self.query.model(undefined, self._fields, true);
   instance.init(doc, function (err) {
     if (err) return self.destroy(err);
-    self.emit('data', self._transform(instance));
-
-    // trampoline management
-    if (T_IDLE === self._inline) {
-      // no longer in trampoline. restart it.
-      self._next();
-    } else
-      // in a trampoline. tell __next that its
-      // ok to continue jumping.
-      self._inline = T_CONT;
+    emit(self, instance);
   });
+}
+
+/*!
+ * Emit a data event and manage the trampoline state
+ */
+
+function emit (self, doc) {
+  self.emit('data', self._transform(doc));
+
+  // trampoline management
+  if (T_IDLE === self._inline) {
+    // no longer in trampoline. restart it.
+    self._next();
+  } else {
+    // in a trampoline. tell __next that its
+    // ok to continue jumping.
+    self._inline = T_CONT;
+  }
 }
 
 /**
@@ -309,13 +322,6 @@ QueryStream.prototype.destroy = function (err) {
  * ####Example:
  *
  *     query.stream().pipe(writeStream [, options])
- *
- * This could be particularily useful if you are, for example, setting up an API for a service and want to stream out the docs based on some criteria. We could first pipe the QueryStream into a sort of filter that formats the stream as an array before passing on the document to an http response.
- *
- *     var format = new ArrayFormatter;
- *     Events.find().stream().pipe(format).pipe(res);
- *
- * As long as ArrayFormat implements the WriteStream API we can stream large formatted result sets out to the client. See this [gist](https://gist.github.com/1403797) for a hacked example.
  *
  * @method pipe
  * @memberOf QueryStream

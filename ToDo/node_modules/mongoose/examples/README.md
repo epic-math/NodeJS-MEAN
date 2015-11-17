@@ -10,10 +10,11 @@ To run:
 Goal is to show:
 
 - global schemas
-- GeoJSON schemas / use
+- GeoJSON schemas / use (with crs)
 - text search
 - storing schemas as json
 - lean querires
+- statics
 - methods and statics on subdocs
 - custom types
 - querybuilder
